@@ -28,6 +28,7 @@
 
         let scene, camera, renderer, controls;
         const planets = [];
+        let ufo;
 
         function init() {
             // 1. Scene (场景)
@@ -49,10 +50,10 @@
             controls.dampingFactor = 0.05;
 
             // 5. Lights (灯光)
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1); // 环境光
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Increased intensity for SVG
             scene.add(ambientLight);
 
-            const pointLight = new THREE.PointLight(0xffffff, 2.5, 500); // 太阳的点光源
+            const pointLight = new THREE.PointLight(0xffffff, 5, 500); // Increased intensity for SVG
             scene.add(pointLight);
 
             // --- Create Celestial Bodies (创建天体) ---
@@ -61,6 +62,7 @@
             createSun();
             createSolarSystem();
             createBlackHole();
+            createUFO();
 
             // --- Event Listeners ---
             window.addEventListener('resize', onWindowResize, false);
@@ -79,35 +81,20 @@
             }
             const starGeometry = new THREE.BufferGeometry();
             starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-            const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 });
-            const stars = new THREE.Points(starGeometry, starMaterial);
-            scene.add(stars);
+            // SVGRenderer does not support PointsMaterial well, so we skip the stars
+            // const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 });
+            // const stars = new THREE.Points(starGeometry, starMaterial);
+            // scene.add(stars);
         }
 
         // 创建太阳
         function createSun() {
             const sunGeometry = new THREE.SphereGeometry(15, 32, 32);
-            // MeshBasicMaterial 不受灯光影响，看起来像自身在发光
-            const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd00, map: createSunTexture() });
+            const sunMaterial = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
             const sun = new THREE.Mesh(sunGeometry, sunMaterial);
             scene.add(sun);
         }
         
-        // 创建一个简单的太阳纹理
-        function createSunTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 128;
-            canvas.height = 128;
-            const context = canvas.getContext('2d');
-            const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-            gradient.addColorStop(0.1, 'rgba(255, 220, 150, 1)');
-            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
-            gradient.addColorStop(1, 'rgba(255, 100, 0, 0.8)');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, 128, 128);
-            return new THREE.CanvasTexture(canvas);
-        }
-
         // 创建太阳系
         function createSolarSystem() {
             // (名字, 颜色, 大小, 轨道半径, 公转速度)
@@ -119,18 +106,26 @@
         }
 
         function addPlanet(name, color, size, distance, speed) {
-            const planetGeometry = new THREE.SphereGeometry(size, 32, 32);
-            const planetMaterial = new THREE.MeshStandardMaterial({ color: color });
+            const planetGeometry = new THREE.SphereGeometry(size, 12, 12); // Reduced segments for SVG
+            const planetMaterial = new THREE.MeshBasicMaterial({ color: color });
             const planet = new THREE.Mesh(planetGeometry, planetMaterial);
             
-            // 为了方便计算轨道，我们使用一个 Object3D 作为公转中心
             const pivot = new THREE.Object3D();
             scene.add(pivot);
             pivot.add(planet);
 
             planet.position.x = distance;
 
-            // 绘制轨道线
+            // Add moon to Earth
+            if (name === "Earth") {
+                const moonGeometry = new THREE.SphereGeometry(size * 0.27, 12, 12);
+                const moonMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc });
+                const moon = new THREE.Mesh(moonGeometry, moonMaterial);
+                moon.position.x = size + 4; // Position relative to the Earth
+                planet.add(moon); // Add moon as a child of the Earth
+                planets.push({ name: "Moon-Parent", pivot: planet, speed: 0.05 }); // Add Earth to planets array to rotate it
+            }
+
             const orbitGeometry = new THREE.RingGeometry(distance - 0.1, distance + 0.1, 128);
             const orbitMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.2 });
             const orbit = new THREE.Mesh(orbitGeometry, orbitMaterial);
@@ -144,57 +139,61 @@
         function createBlackHole() {
             const blackHoleGroup = new THREE.Group();
 
-            // 黑洞本体
-            const holeGeometry = new THREE.SphereGeometry(10, 32, 32);
+            const holeGeometry = new THREE.SphereGeometry(10, 12, 12);
             const holeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
             const hole = new THREE.Mesh(holeGeometry, holeMaterial);
             blackHoleGroup.add(hole);
 
-            // 吸积盘
-            const diskGeometry = new THREE.TorusGeometry(25, 8, 2, 100);
-            const diskMaterial = new THREE.MeshBasicMaterial({ 
-                color: 0xffa500, 
-                side: THREE.DoubleSide,
-                map: createAccretionDiskTexture()
-            });
+            const diskGeometry = new THREE.TorusGeometry(25, 8, 2, 24);
+            const diskMaterial = new THREE.MeshBasicMaterial({ color: 0xffa500, side: THREE.DoubleSide });
             const accretionDisk = new THREE.Mesh(diskGeometry, diskMaterial);
-            accretionDisk.rotation.x = Math.PI / 2 + 0.2; // 倾斜
+            accretionDisk.rotation.x = Math.PI / 2 + 0.2;
             blackHoleGroup.add(accretionDisk);
             
             blackHoleGroup.position.set(-250, 20, -150);
             scene.add(blackHoleGroup);
             
-            // 让吸积盘动起来
             planets.push({ name: "BlackHoleDisk", pivot: accretionDisk, speed: 0.015 });
         }
-        
-        function createAccretionDiskTexture() {
-            const canvas = document.createElement('canvas');
-            canvas.width = 256;
-            canvas.height = 256;
-            const context = canvas.getContext('2d');
-            const gradient = context.createRadialGradient(128, 128, 50, 128, 128, 128);
-            gradient.addColorStop(0, 'rgba(255, 255, 0, 1)');
-            gradient.addColorStop(0.5, 'rgba(255, 165, 0, 1)');
-            gradient.addColorStop(0.8, 'rgba(255, 0, 0, 1)');
-            gradient.addColorStop(1, 'rgba(128, 0, 128, 0.5)');
-            context.fillStyle = gradient;
-            context.fillRect(0, 0, 256, 256);
-            return new THREE.CanvasTexture(canvas);
-        }
 
+        function createUFO() {
+            const ufoGroup = new THREE.Group();
+
+            const bodyMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+            const bodyGeom = new THREE.CylinderGeometry(4, 1, 2, 16);
+            const ufoBody = new THREE.Mesh(bodyGeom, bodyMaterial);
+            ufoGroup.add(ufoBody);
+
+            const domeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ddff });
+            const domeGeom = new THREE.SphereGeometry(2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+            const ufoDome = new THREE.Mesh(domeGeom, domeMaterial);
+            ufoDome.position.y = 1.5;
+            ufoGroup.add(ufoDome);
+
+            ufoGroup.position.set(200, 50, -200);
+            ufoGroup.scale.set(2, 2, 2);
+            scene.add(ufoGroup);
+            ufo = ufoGroup;
+        }
+        
         // 动画循环
         function animate() {
             requestAnimationFrame(animate);
 
             // 更新行星公转
             planets.forEach(p => {
-                if (p.name === "BlackHoleDisk") {
-                    p.pivot.rotation.z += p.speed; // 吸积盘自转
-                } else {
-                    p.pivot.rotation.y += p.speed; // 行星绕太阳公转
-                }
+                p.pivot.rotation.y += p.speed;
             });
+
+            // Animate UFO
+            if (ufo) {
+                ufo.position.x -= 0.5;
+                ufo.position.z += 0.2;
+                if (ufo.position.x < -300) {
+                    ufo.position.x = 300;
+                    ufo.position.z = -200;
+                }
+            }
 
             controls.update();
             renderer.render(scene, camera);
