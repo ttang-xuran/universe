@@ -28,7 +28,7 @@
 
         let scene, camera, renderer, controls;
         const planets = [];
-        let ufo;
+        let ufo, usaShip, chinaShip;
 
         function init() {
             // 1. Scene (场景)
@@ -63,6 +63,7 @@
             createSolarSystem();
             createBlackHole();
             createUFO();
+            createNationalSpacecraft();
 
             // --- Event Listeners ---
             window.addEventListener('resize', onWindowResize, false);
@@ -72,19 +73,7 @@
 
         // 创建星空背景
         function createStarfield() {
-            const starVertices = [];
-            for (let i = 0; i < 10000; i++) {
-                const x = THREE.MathUtils.randFloatSpread(2000);
-                const y = THREE.MathUtils.randFloatSpread(2000);
-                const z = THREE.MathUtils.randFloatSpread(2000);
-                starVertices.push(x, y, z);
-            }
-            const starGeometry = new THREE.BufferGeometry();
-            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
             // SVGRenderer does not support PointsMaterial well, so we skip the stars
-            // const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.7 });
-            // const stars = new THREE.Points(starGeometry, starMaterial);
-            // scene.add(stars);
         }
 
         // 创建太阳
@@ -175,6 +164,50 @@
             scene.add(ufoGroup);
             ufo = ufoGroup;
         }
+
+        function createNationalSpacecraft() {
+            // USA Spacecraft
+            const usaColors = { body: 0xffffff, nose: 0xb31942, booster: 0x0b3d91 }; // White, Red, Blue
+            usaShip = createSpacecraft(usaColors);
+            usaShip.position.set(-200, -30, -150);
+            scene.add(usaShip);
+
+            // China Spacecraft
+            const chinaColors = { body: 0xeeeeee, nose: 0xde2910, booster: 0xfff200 }; // Light Grey, Red, Yellow
+            chinaShip = createSpacecraft(chinaColors);
+            chinaShip.position.set(200, -60, -250);
+            scene.add(chinaShip);
+        }
+
+        function createSpacecraft(colors) {
+            const group = new THREE.Group();
+            const bodyMat = new THREE.MeshBasicMaterial({ color: colors.body });
+            const noseMat = new THREE.MeshBasicMaterial({ color: colors.nose });
+            const boosterMat = new THREE.MeshBasicMaterial({ color: colors.booster });
+
+            // Main body
+            const bodyGeom = new THREE.CylinderGeometry(0.5, 1, 6, 8);
+            const body = new THREE.Mesh(bodyGeom, bodyMat);
+            group.add(body);
+
+            // Nose cone
+            const noseGeom = new THREE.ConeGeometry(0.5, 2, 8);
+            const nose = new THREE.Mesh(noseGeom, noseMat);
+            nose.position.y = 4;
+            group.add(nose);
+
+            // Booster
+            const boosterGeom = new THREE.CylinderGeometry(1.2, 1.2, 1.5, 8);
+            const booster = new THREE.Mesh(boosterGeom, boosterMat);
+            booster.position.y = -3;
+            group.add(booster);
+
+            group.scale.set(3, 3, 3);
+            group.rotation.x = Math.PI / 2;
+            group.rotation.z = -Math.PI / 4;
+
+            return group;
+        }
         
         // 动画循环
         function animate() {
@@ -192,6 +225,20 @@
                 if (ufo.position.x < -300) {
                     ufo.position.x = 300;
                     ufo.position.z = -200;
+                }
+            }
+
+            // Animate National Spacecraft
+            if (usaShip) {
+                usaShip.position.x += 0.4;
+                if (usaShip.position.x > 300) {
+                    usaShip.position.x = -300;
+                }
+            }
+            if (chinaShip) {
+                chinaShip.position.x -= 0.3;
+                if (chinaShip.position.x < -300) {
+                    chinaShip.position.x = 300;
                 }
             }
 
